@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поисковик Захоронений</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        /* === СВЕТЛАЯ / МИНИМАЛИСТИЧНАЯ ЦВЕТОВАЯ СХЕМА === */
+        :root {
+            --color-bg-dark: #F9FAFB;   /* Основной светлый фон */
+            --color-accent: #1D4ED8;    /* Темный синий для акцентов/FIO */
+            --color-primary: #3B82F6;   /* Основной цвет (Голубой) */
+            --color-text-light: #1F2937; /* Темный текст */
+            --color-card-bg: #FFFFFF;   /* Фон карточек и левой панели */
+            --color-highlight-static: #EF4444; /* Ярко-красный для постоянного выделения */
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-bg-dark); 
+            color: var(--color-text-light);
+            overscroll-behavior: none;
+            overflow: hidden; 
+        }
+        
+        /* === АНИМАЦИЯ: КРАСНОЕ МИГАНИЕ ДЛЯ СЕКТОРА И МАРКЕРА === */
+        @keyframes flashRedFill {
+            0%, 100% { 
+                opacity: 1; 
+                /* Используем фильтры для создания яркого красного свечения/заливки */
+                filter: grayscale(100%) sepia(100%) hue-rotate(-50deg) saturate(600%) brightness(0.8) contrast(1.2) drop-shadow(0 0 15px #EF4444);
+            } 
+            55% { 
+                opacity: 0.3; 
+                filter: grayscale(100%) sepia(100%) hue-rotate(-50deg) saturate(600%) brightness(0.8) contrast(1.2) drop-shadow(0 0 0px #EF4444);
+            }
+        }
+        .animate-flash-red { animation: flashRedFill 0.5s infinite alternate; }
+
+        /* === СТАТИЧЕСКОЕ КРАСНОЕ ВЫДЕЛЕНИЕ (после мигания) === */
+        .highlight-static {
+            opacity: 1 !important; 
+            filter: grayscale(100%) sepia(100%) hue-rotate(-50deg) saturate(600%) brightness(0.8) contrast(1.2) drop-shadow(0 0 10px #EF4444) !important;
+            transition: filter 0.3s ease;
+        }
+
+        /* СТИЛИ КАРТЫ */
+        .map-wrapper { 
+            transform-origin: 0 0; 
+            will-change: transform;
+        }
+        
+        .map-layer-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .map-layer { opacity: 0; transition: opacity 0.3s; }
+        .map-layer.visible { opacity: 1; }
+        .map-image-content { width: 100%; height: 100%; position: absolute; top: 0; left: 0; object-fit: contain; pointer-events: none; }
+
+        .custom-button {
+            border: 2px solid var(--color-primary); 
+            color: var(--color-primary);
+            background-color: transparent;
+            transition: all 0.3s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .custom-button:hover {
+            background-color: var(--color-primary); color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        .custom-button.active { background-color: var(--color-primary); color: white; }
+        
+        #coordDisplay {
+            background-color: rgba(0, 0, 0, 0.8); 
+            color: #FFFFFF;
+            padding: 4px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 20;
+        }
+        
+        #mapContainer.dragging { cursor: grabbing !important; }
+        #mapContainer { 
+            touch-action: none; 
+            overflow: hidden; 
+            background-color: #111827; 
+        }
+
+/* === СТИЛИ ДЛЯ КОМПЬЮТЕРОВ (ОТ 769px) - УВЕЛИЧЕННЫЕ ШРИФТЫ === */
+@media (min-width: 769px) {
+    /* На десктопе карта занимает 2/3 и имеет адаптивное соотношение сторон */
+    #mapContainer { aspect-ratio: 16 / 9 !important; height: 100% !important; }
+    #mapColumn { height: 100% !important; }
+    
+    /* УВЕЛИЧЕННЫЕ ШРИФТЫ (lg-text-* используются только на desktop) */
+    .lg-text-3xl { font-size: 1.875rem; line-height: 2.25rem; } 
+    .lg-text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+    .lg-text-base { font-size: 1rem; line-height: 1.5rem; }
+}
+
+/* === СТИЛИ ДЛЯ МОБИЛЬНЫХ (ДО 768px) - ПЕРЕСТРОЙКА ИНТЕРФЕЙСА === */
+@media (max-width: 768px) {
+    /* Карта на мобильном: order-3, занимает оставшееся место */
+    #mapColumn { 
+        flex-grow: 1; /* Занимает оставшуюся высоту */
+        min-height: 250px; /* Минимальная высота карты */
+        height: auto;
+    }
+    
+    /* Search/List (order-4) должен иметь фиксированную высоту для скролла */
+    #searchListWrapper {
+        height: 40vh; /* Фиксированная высота для списка */
+        border-top: 1px solid #E5E7EB; /* Разделитель */
+        padding-top: 0.5rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+
+    /* Header (order-1) и Contacts (order-2) */
+    #headerBar { padding: 1rem 1.5rem 0.5rem !important; }
+    #contactBar { 
+        padding: 0.5rem 1.5rem !important; 
+        border-top: 1px solid #E5E7EB; 
+    }
+
+    /* Адаптивные шрифты для мобильных устройств */
+    .mobile-text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+    .mobile-text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+    .mobile-text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+
+    #headerBar h1 { font-size: 1.25rem; } 
+    #searchInput { padding: 0.5rem !important; font-size: 0.875rem !important; }
+    #resultsContainer > div { padding: 0.75rem !important; }
+    #resultsContainer img { width: 32px; height: 32px; }
+    #infoPanel { padding: 1rem !important; }
+    /* Применение меньших шрифтов к кнопкам контактов */
+    #contactBar .custom-button { padding: 0.25rem 0.5rem !important; font-size: 0.75rem !important; }
+}
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-hidden">
+
+    <main class="flex flex-col h-screen md:flex-row md:flex-wrap"> 
+    
+        <div id="headerBar" class="w-full p-6 md:p-6 md:pb-2 md:w-1/3 order-1 md:order-1" style="background-color: var(--color-card-bg);">
+            <div class="flex justify-between items-start mb-4">
+                 <h1 class="font-bold text-blue-600 flex items-center text-2xl lg-text-3xl mobile-text-lg">
+                    <span id="headingText">Бухарское Еврейское кладбище</span>
+                </h1>
+                <div class="flex space-x-2">
+                    <button id="langRu" onclick="switchLanguage('ru')" class="custom-button px-2 py-1 rounded text-xs font-bold active mobile-text-xs">RU</button>
+                    <button id="langEn" onclick="switchLanguage('en')" class="custom-button px-2 py-1 rounded text-xs font-bold mobile-text-xs">EN</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="contactBar" class="w-full p-4 md:p-4 md:pt-2 md:w-1/3 order-2 md:order-1 md:hidden border-b border-gray-300" style="background-color: var(--color-card-bg);">
+            <div class="flex flex-wrap justify-between items-center">
+                <div class="pointer-events-auto">
+                    <h3 class="font-semibold text-gray-900 text-sm lg-text-base mobile-text-xs" id="contactTitle">Контакты</h3>
+                    <p class="text-gray-700 text-xs lg-text-sm mobile-text-xs" id="phoneLabel">Tel: +998...</p>
+                </div>
+                <div class="flex gap-2 pointer-events-auto">
+                    <a href="#" id="btnVideo" class="custom-button px-3 py-1 rounded-full text-xs mobile-text-xs">Видео 360°</a>
+                    <a href="#" id="btn3D" class="custom-button px-3 py-1 rounded-full text-xs mobile-text-xs">3D</a>
+                </div>
+            </div>
+        </div>
+        
+        <div id="mapColumn" class="w-full relative bg-gray-900 flex flex-col order-3 md:w-2/3 md:order-2">
+            <div id="mapContainer" class="relative w-full h-full overflow-hidden cursor-grab">
+                <div id="coordDisplay" class="absolute bottom-3 right-3">X: 0.00, Y: 0.00</div>
+                
+                <div id="mapWrapper" class="map-wrapper w-full h-full relative">
+                    <img id="orthoPhoto" src="orthophoto/Карта2.png" onerror="this.onerror=null;this.src='https://placehold.co/1200x675/000000/ffffff?text=Map+Error'" alt="Ортофотоплан" class="map-image-content"> 
+                    <div id="sectorImageContainer" class="map-layer-overlay"></div>
+                    <div id="burialImageContainer" class="map-layer-overlay"></div>
+                </div>
+            </div>
+            
+            <div id="desktopContactBar" class="absolute bottom-6 left-6 right-6 p-4 rounded-xl shadow-lg border border-gray-300 bg-white/90 backdrop-blur-sm flex flex-wrap justify-between items-center pointer-events-none hidden md:flex">
+                <div class="pointer-events-auto">
+                    <h3 class="font-semibold text-gray-900 text-sm lg-text-base" id="contactTitleDesktop">Контакты</h3>
+                    <p class="text-gray-700 text-xs lg-text-sm" id="phoneLabelDesktop">Tel: +998...</p>
+                </div>
+                <div class="flex gap-2 pointer-events-auto">
+                    <a href="#" id="btnVideoDesktop" class="custom-button px-3 py-1 rounded-full text-xs lg-text-sm">Видео 360°</a>
+                    <a href="#" id="btn3DDesktop" class="custom-button px-3 py-1 rounded-full text-xs lg-text-sm">3D</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="searchListWrapper" class="w-full overflow-y-auto order-4 md:w-1/3 md:order-1 md:flex-grow p-4 md:p-6 md:pt-2 md:border-r border-gray-300" style="background-color: var(--color-card-bg);">
+            <div id="searchContainer" class="mb-4">
+                <input type="text" id="searchInput" oninput="filterBurials()" placeholder="Введите ФИО..." class="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg lg-text-xl mobile-text-sm">
+            </div>
+            <div id="contentWrapper" class="overflow-y-auto flex-grow pr-2">
+                <div id="resultsContainer" class="space-y-3"></div>
+                <div id="infoPanel" class="hidden p-4 rounded-xl border border-gray-300 bg-gray-100"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="photoModal" class="hidden fixed inset-0 bg-black/90 flex justify-center items-center z-50 p-4" onclick="document.getElementById('photoModal').classList.add('hidden')">
+        <img id="modalImage" class="max-w-full max-h-full object-contain cursor-pointer" src="" alt="Full-size burial photo" onclick="event.stopPropagation()">
+        <button class="absolute top-4 right-4 text-white text-4xl font-light p-2 hover:text-red-500 transition duration-150" onclick="event.stopPropagation(); document.getElementById('photoModal').classList.add('hidden')">&times;</button>
+    </div>
+    <div id="messageBox" class="hidden fixed inset-0 bg-black/80 flex justify-center items-center z-50">
+        <div class="bg-white p-6 rounded-lg max-w-sm text-center">
+            <p id="messageText" class="text-gray-800 mb-4"></p>
+            <button onclick="document.getElementById('messageBox').classList.add('hidden')" class="custom-button bg-blue-600 text-white px-4 py-2 rounded">OK</button>
+        </div>
+    </div>
+
+    <script>
+        // === 1. КОНСТАНТЫ ===
+        const MIN_SCALE = 1.0;     
+        const MAX_SCALE = 10.0;     
+        const SECTOR_SCALE = 4.0;  
+        
+        // === 2. СОСТОЯНИЕ ===
+        let tX = 0, tY = 0;
+        let scale = 1;
+        let currentLang = 'ru';
+
+        // === 3. ДАННЫЕ ===
+        const languageData = {
+            ru: {
+                heading: "Бухарское Еврейское кладбище", 
+                search_placeholder: "Поиск...", not_found: "Не найдено",
+                total_count: (c) => `Найдено: ${c}`, info_panel_title: "Контакты", btn_back: "← Назад",
+                label_date: "Дата", label_phone: "Тел", btn_video: "Видео 360°", btn_3d: "3D",
+                coord_outside: "-", error_general: "Ошибка", error_img: "Ошибка фото",
+                getFio: (b) => b.fio_ru, getDetails: (b) => b.details_ru,
+            },
+            en: {
+                heading: "Bukharian Jewish Cemetery", 
+                search_placeholder: "Search...", not_found: "Not found",
+                total_count: (c) => `Found: ${c}`, info_panel_title: "Contacts", btn_back: "← Back",
+                label_date: "Date", label_phone: "Ph", btn_video: "Video 360°", btn_3d: "3D",
+                coord_outside: "-", error_general: "Error", error_img: "Img Error",
+                getFio: (b) => b.fio_en, getDetails: (b) => b.details_en,
+            }
+        };
+
+        const burialData = [
+            { id: 1, fio_ru: "Мираков Нисон Сионович", fio_en: "Mirakov Nison Sionovich", date: "01.01.1950-10.10.2010", photo: "photos/Мираков Нисон Сионович.jpg", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Мираков Нисон Сионович.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 2, fio_ru: "Мираков Мошиях Сионович", fio_en: "Mirakov Moshiyakh Sionovich", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Мираков Мошиях Сионович.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 3, fio_ru: "Якубова-Ядгарова Юшуо", fio_en: "Yakubova-Yadgarova Yushuo", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Якубова-Ядгарова Юшуо.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 4, fio_ru: "Якубов Або-Кобил", fio_en: "Yakubov Abo-Kobil", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Якубов Або-Кобил.png", details_ru: "Сектор-1А.", details_en: "Сектор-1А.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.71, burial_y: 0.13 },
+            { id: 5, fio_ru: "Борухов Рубен Михайлович", fio_en: "Borukhov Ruben Mikhailovich", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Борухов Рубен Михайлович.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 6, fio_ru: "Давидова Сарра Давидовна", fio_en: "Davidova Sarra Davidovna", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Давидова Сарра Давидовна.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 7, fio_ru: "Каршигиев Якуб Ильяевич", fio_en: "Karshigiev Yakub Ilyayevich", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Каршигиев Якуб Ильяевич.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 8, fio_ru: "Юнатанов Юхонон", fio_en: "Yunatanov Yuhonon", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Юнатанов Юхонон.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 9, fio_ru: "На иврите (нужно переводить)", fio_en: "In Hebrew (needs translation)", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/На иврите1.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 10, fio_ru: "Яшуа Эшет Муло Мурдахай Кавови", fio_en: "Yashua Eshet Mulo Murdakhai Kavovi", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Яшуа Эшет Муло Мурдахай Кавови.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 12, fio_ru: "Куинча Пинхасов", fio_en: "Kuincha Pinkhasov", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Куинча Пинхасов.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 13, fio_ru: "Борухова Балор/Борухова Нисим", fio_en: "Borukhova Balor/Borukhova Nisim", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Борухова Балор-Борухова Нисим.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 14, fio_ru: "Гулямова Малко", fio_en: "Gulyamova Malko", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Гулямова Малко.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 15, fio_ru: "Илёху Каршигиев", fio_en: "Ilyokhu Karshigiev", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Илёху Каршигиев.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 16, fio_ru: "Эльнатанов Соломон Моисеевич", fio_en: "Elnatanov Solomon Moiseevich", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Эльнатанов Соломон Моисеевич.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 17, fio_ru: "Аминов Исхак", fio_en: "Aminov Iskhak", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Аминов Исхак.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 18, fio_ru: "Моше-Хаим а-Коэн/Гулькаров Ципора Бахмал", fio_en: "Moshe Chaim A-Cohen/Gulkarev Tsipora Bakhmal", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Моше-Хаим а-Коэн-Гулькаров Ципора Бахмал.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 19, fio_ru: "Аминов Бобочон", fio_en: "Aminov Bobochon", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Аминов Бобочон.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 20, fio_ru: "Мираков Сион", fio_en: "Mirakov Zion", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Мираков Сион.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 21, fio_ru: "Аминов Юсефхаим", fio_en: "Aminov Yusefkhayim", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Аминов Юсефхаим.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 22, fio_ru: "Ясаев Або/Хаимова Бахшанда", fio_en: "Yasaev Abo/Khaimova Bakhshanda", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "Ясаев Або-Хаимова Бахшанда.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+            { id: 23, fio_ru: "Давидов Иосиф Давидович/Давидов-Аронов Бениамин Давидович", fio_en: "Davidov Iosif Davidovich/Davidov-Aronov Beniamin Davidovich", date: "01.01.1950-10.10.2010", photo: "photos/Star_of_David.svg.png", sector_png_url: "sectors/Sector-1A.png", burial_png_url: "graves/Давидов Иосиф Давидович-Давидов-Аронов Бениамин Давидович.png", details_ru: "Сектор-1А.", details_en: "Sector-1A.", sector_x: 0.71, sector_y: 0.17, burial_x: 0.70, burial_y: 0.13 },
+        ];
+
+        const D = document;
+        const mapContainer = D.getElementById('mapContainer'); 
+        const mapWrapper = D.getElementById('mapWrapper');
+        const sectorImageContainer = D.getElementById('sectorImageContainer'); 
+        const burialImageContainer = D.getElementById('burialImageContainer'); 
+        const coordDisplay = D.getElementById('coordDisplay'); 
+        const orthoPhoto = D.getElementById('orthoPhoto');
+
+        // === 4. ЯДРО КАРТЫ (С математикой границ) ===
+
+        function getDims() {
+            const cw = mapContainer.clientWidth;
+            const ch = mapContainer.clientHeight;
+            if (!orthoPhoto.naturalWidth) return { cw, ch, iw:0, ih:0, offX:0, offY:0 };
+
+            const imgRatio = orthoPhoto.naturalWidth / orthoPhoto.naturalHeight;
+            const contRatio = cw / ch;
+            let iw, ih;
+            if (contRatio > imgRatio) { ih = ch; iw = ch * imgRatio; } 
+            else { iw = cw; ih = cw / imgRatio; }
+            
+            const offX = (cw - iw) / 2;
+            const offY = (ch - ih) / 2;
+            return { cw, ch, iw, ih, offX, offY };
+        }
+
+        // ОГРАНИЧЕНИЕ (CLAMP): Не дает утащить карту за границы
+        function clamp() {
+            const d = getDims();
+            if (d.iw === 0) return;
+
+            const currentIW = d.iw * scale;
+            const currentIH = d.ih * scale;
+
+            // По горизонтали
+            if (currentIW <= d.cw) {
+                // Если картинка меньше экрана - центрируем
+                tX = (d.cw - currentIW) / 2 - d.offX * scale;
+            } else {
+                // Если больше - не даем уйти краям
+                const maxTx = -d.offX * scale;
+                const minTx = d.cw - currentIW - d.offX * scale;
+                tX = Math.min(maxTx, Math.max(minTx, tX));
+            }
+
+            // По вертикали (аналогично)
+            if (currentIH <= d.ch) {
+                tY = (d.ch - currentIH) / 2 - d.offY * scale;
+            } else {
+                const maxTy = -d.offY * scale;
+                const minTy = d.ch - currentIH - d.offY * scale;
+                tY = Math.min(maxTy, Math.max(minTy, tY));
+            }
+        }
+
+        function renderTransform(duration = 0) {
+            clamp();
+            
+            if (duration > 0) {
+                mapWrapper.style.transition = `transform ${duration}s cubic-bezier(0.25, 1, 0.5, 1)`;
+            } else {
+                mapWrapper.style.transition = 'none';
+            }
+            mapWrapper.style.transform = `translate(${tX}px, ${tY}px) scale(${scale})`;
+        }
+
+        // Центрирует карту на точке (relX, relY - от 0 до 1 относительно картинки)
+        function centerOnPoint(relX, relY, targetScale, duration) {
+            const d = getDims();
+            if (d.iw === 0) return;
+            scale = targetScale;
+            
+            // Пиксель на картинке (без зума)
+            const px = d.offX + relX * d.iw;
+            const py = d.offY + relY * d.ih;
+            
+            // Центрируем: tX = CenterScreen - Px * Scale
+            tX = (d.cw / 2) - (px * scale);
+            tY = (d.ch / 2) - (py * scale);
+            renderTransform(duration);
+        }
+
+        async function resetMap(animate = false) {
+            scale = 1;
+            tX = 0; tY = 0; 
+            
+            if (animate) {
+                renderTransform(2.0);
+                await new Promise(r => setTimeout(r, 2000));
+            } else {
+                renderTransform(0);
+            }
+            // Полностью очищаем контейнеры, чтобы избежать конфликтов анимации
+            sectorImageContainer.innerHTML = '';
+            burialImageContainer.innerHTML = '';
+            // Гарантируем, что класс static highlight удален со всех элементов
+            const oldBurialImg = burialImageContainer.querySelector('.map-layer');
+            if(oldBurialImg) {
+                oldBurialImg.classList.remove('highlight-static');
+            }
+        }
+
+        async function loadLayer(src, cont) {
+            return new Promise(r => {
+                const img = new Image(); img.src = src; img.className = 'map-layer map-image-content';
+                img.onload = () => { cont.innerHTML = ''; cont.appendChild(img); r(img); };
+                img.onerror = () => { cont.innerHTML = ''; r(null); };
+            });
+        }
+
+        // === 5. АНИМАЦИЯ (Одношаговый крупный зум) ===
+        async function animateBurial(id) {
+            const b = burialData.find(x => x.id === id);
+            if (!b) return;
+
+            await resetMap(false);
+            
+            // 1. Загрузка слоев
+            const secImg = await loadLayer(b.sector_png_url, sectorImageContainer);
+            const burImg = await loadLayer(b.burial_png_url, burialImageContainer);
+            
+            // 2. Сектор: Начало мигания и показ. Точка захоронения: только показ (не мигает)
+            if (secImg) secImg.classList.add('visible', 'animate-flash-red'); 
+            if (burImg) burImg.classList.add('visible'); 
+            
+            // Пауза для корректного старта CSS-анимации и предотвращения бага
+            await new Promise(r => setTimeout(r, 100)); 
+
+            // 3. Начало Зума (продолжительность 2 секунды)
+            centerOnPoint(b.burial_x, b.burial_y, SECTOR_SCALE, 2.0); 
+
+            // 4. Ждем 1 секунду (сектор мигает, зум на полпути)
+            await new Promise(r => setTimeout(r, 1000)); 
+
+            // 5. Сектор: Стоп мигания
+            if (secImg) secImg.classList.remove('animate-flash-red');
+            
+            // 6. Точка захоронения: Начало мигания
+            if (burImg) burImg.classList.add('animate-flash-red');
+
+            // 7. Ждем еще 1 секунду (зум заканчивается, точка мигает)
+            await new Promise(r => setTimeout(r, 1000)); 
+
+            // 8. Финал: Стоп мигания, статичное красное выделение точки захоронения
+            if (burImg) {
+                burImg.classList.remove('animate-flash-red');
+                burImg.classList.add('highlight-static');
+            }
+            // Убедимся, что переход карты выключен, чтобы не мешать дальнейшим действиям
+            setTimeout(() => { mapWrapper.style.transition = 'none'; }, 100);
+        }
+
+        // === Открытие модального окна с фото ===
+        function openPhotoModal(src) {
+            const modal = D.getElementById('photoModal');
+            const image = D.getElementById('modalImage');
+            image.src = src;
+            modal.classList.remove('hidden');
+        }
+
+        // === 6. УПРАВЛЕНИЕ ===
+        function setupControls() {
+            let isDragging = false;
+            let startX = 0, startY = 0, startTx = 0, startTy = 0;
+
+            // WHEEL ZOOM (к курсору)
+            mapContainer.addEventListener('wheel', e => {
+                e.preventDefault();
+                const rect = mapContainer.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const delta = -Math.sign(e.deltaY);
+                const factor = 0.1;
+                let newScale = scale * (1 + delta * factor);
+                newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+
+                const worldX = (mx - tX) / scale;
+                const worldY = (my - tY) / scale;
+
+                tX = mx - worldX * newScale;
+                tY = my - worldY * newScale;
+                scale = newScale;
+                renderTransform(0);
+            }, { passive: false });
+
+            // DRAG (Мышь)
+            mapContainer.addEventListener('mousedown', e => {
+                if (e.button === 0) {
+                    isDragging = true;
+                    startX = e.clientX; startY = e.clientY;
+                    startTx = tX; startTy = tY;
+                    mapContainer.classList.add('dragging');
+                }
+            });
+            window.addEventListener('mousemove', e => {
+                if (isDragging) {
+                    tX = startTx + (e.clientX - startX);
+                    tY = startTy + (e.clientY - startY);
+                    renderTransform(0);
+                }
+                updateCoords(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', () => { isDragging = false; mapContainer.classList.remove('dragging'); });
+
+            // TOUCH
+            let initDist = 0, initScale = 1, pinchWorldX = 0, pinchWorldY = 0;
+            
+            mapContainer.addEventListener('touchstart', e => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+                    startTx = tX; startTy = tY;
+                } else if (e.touches.length === 2) {
+                    isDragging = false;
+                    initDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+                    initScale = scale;
+                    const rect = mapContainer.getBoundingClientRect();
+                    const cx = (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left;
+                    const cy = (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top;
+                    pinchWorldX = (cx - tX) / scale;
+                    pinchWorldY = (cy - tY) / scale;
+                }
+            }, { passive: false });
+
+            mapContainer.addEventListener('touchmove', e => {
+                e.preventDefault();
+                if (e.touches.length === 1 && isDragging) {
+                    tX = startTx + (e.touches[0].clientX - startX);
+                    tY = startTy + (e.touches[0].clientY - startY);
+                    renderTransform(0);
+                } else if (e.touches.length === 2) {
+                    const dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+                    let newScale = initScale * (dist / initDist);
+                    newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+                    scale = newScale;
+                    
+                    const rect = mapContainer.getBoundingClientRect();
+                    const cx = (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left;
+                    const cy = (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top;
+                    
+                    tX = cx - pinchWorldX * newScale;
+                    tY = cy - pinchWorldY * newScale;
+                    renderTransform(0);
+                }
+            }, { passive: false });
+            window.addEventListener('touchend', () => isDragging = false);
+        }
+
+        function updateCoords(cx, cy) {
+            const d = getDims();
+            if (d.iw === 0) return;
+            const rect = mapContainer.getBoundingClientRect();
+            const mx = cx - rect.left; const my = cy - rect.top;
+            const wx = (mx - tX) / scale; const wy = (my - tY) / scale;
+            const rx = (wx - d.offX) / d.iw; const ry = (wy - d.offY) / d.ih;
+
+            if (rx>=0 && rx<=1 && ry>=0 && ry<=1) coordDisplay.innerText = `X: ${rx.toFixed(2)}, Y: ${ry.toFixed(2)}`;
+            else coordDisplay.innerText = languageData[currentLang].coord_outside;
+        }
+
+        // === 7. UI ===
+
+        // Функция для обновления текста контактов
+        function updateContactTexts(t) {
+            // Для мобильного контактов (#contactBar)
+            if (D.getElementById('contactTitle')) D.getElementById('contactTitle').textContent = t.info_panel_title;
+            if (D.getElementById('phoneLabel')) D.getElementById('phoneLabel').textContent = `${t.label_phone}: +998...`;
+            if (D.getElementById('btnVideo')) D.getElementById('btnVideo').textContent = t.btn_video;
+            if (D.getElementById('btn3D')) D.getElementById('btn3D').textContent = t.btn_3d;
+            
+            // Для десктопных контактов
+            if(D.getElementById('contactTitleDesktop')) {
+                D.getElementById('contactTitleDesktop').textContent = t.info_panel_title;
+                D.getElementById('phoneLabelDesktop').textContent = `${t.label_phone}: +998...`;
+                D.getElementById('btnVideoDesktop').textContent = t.btn_video;
+                D.getElementById('btn3DDesktop').textContent = t.btn_3d;
+            }
+        }
+
+        function switchLanguage(lang) {
+            currentLang = lang;
+            const t = languageData[lang];
+            
+            // Заголовок
+            D.getElementById('headingText').textContent = t.heading;
+            
+            // Поиск (общий ID)
+            D.getElementById('searchInput').placeholder = t.search_placeholder;
+            
+            // Кнопки языка
+            D.getElementById('langRu').className = `custom-button px-2 py-1 rounded text-xs font-bold ${lang==='ru'?'active':''} mobile-text-xs`;
+            D.getElementById('langEn').className = `custom-button px-2 py-1 rounded text-xs font-bold ${lang==='en'?'active':''} mobile-text-xs`;
+            
+            updateContactTexts(t); // Обновляем контакты
+            filterBurials();
+            if (!D.getElementById('infoPanel').classList.contains('hidden')) {
+                const id = D.getElementById('infoPanel').dataset.id;
+                if (id) showBurialInfo(burialData.find(b=>b.id==id));
+            }
+        }
+
+        function showBurialInfo(b) {
+            const t = languageData[currentLang];
+            const p = D.getElementById('infoPanel');
+            p.dataset.id = b.id;
+            
+            // Черный текст, голубые акценты
+            p.innerHTML = `
+                <div class="mb-3"><button onclick="hideInfo()" class="text-blue-600 text-sm hover:text-blue-800 lg-text-base mobile-text-sm">${t.btn_back}</button></div>
+                <div class="flex gap-4 mb-4">
+                    <img src="${b.photo}" class="w-20 h-20 rounded object-cover border-2 border-blue-500 cursor-pointer" onclick="openPhotoModal('${b.photo}')">
+                    <div>
+                        <h2 class="font-bold text-gray-900 text-xl lg-text-xl mobile-text-lg">${currentLang==='ru'?b.fio_ru:b.fio_en}</h2>
+                        <p class="text-sm text-gray-600 lg-text-base mobile-text-sm">${b.date}</p>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-800 lg-text-base mobile-text-sm">${currentLang==='ru'?b.details_ru:b.details_en}</p>
+            `;
+            D.getElementById('resultsContainer').classList.add('hidden');
+            p.classList.remove('hidden');
+
+            // --- ИСПРАВЛЕНИЕ: Стабилизируем положение карты перед анимацией ---
+            renderTransform(0); 
+
+            animateBurial(b.id);
+        }
+
+        function hideInfo() {
+            D.getElementById('infoPanel').classList.add('hidden');
+            D.getElementById('resultsContainer').classList.remove('hidden');
+            D.getElementById('searchInput').value = '';
+            filterBurials();
+            resetMap(true);
+        }
+
+        function filterBurials() {
+            const q = D.getElementById('searchInput').value.toLowerCase();
+            const list = q ? burialData.filter(b => b.fio_ru.toLowerCase().includes(q) || b.fio_en.toLowerCase().includes(q)) : burialData;
+            const cont = D.getElementById('resultsContainer');
+            cont.innerHTML = '';
+            
+            if (!list.length) cont.innerHTML = `<div class="text-center text-gray-500 text-base lg-text-base mobile-text-sm">${languageData[currentLang].not_found}</div>`;
+            list.forEach(b => {
+                const el = D.createElement('div');
+                el.className = "p-3 border border-gray-300 rounded bg-white hover:bg-gray-100 cursor-pointer flex items-center gap-3";
+                el.onclick = () => showBurialInfo(b);
+                // Черный шрифт для ФИО: text-base (компьютер), mobile-text-sm (мобильный)
+                el.innerHTML = `<img src="${b.photo}" class="w-10 h-10 rounded-full object-cover border border-gray-300"><div class="text-sm font-bold text-gray-900 lg-text-base mobile-text-sm">${currentLang==='ru'?b.fio_ru:b.fio_en}</div>`;
+                cont.appendChild(el);
+            });
+            
+            // --- ИСПРАВЛЕНИЕ СМЕЩЕНИЯ КАРТЫ ПРИ ПОИСКЕ ---
+            // Выполняем перерасчет и стабилизацию положения карты после изменения содержимого списка
+            renderTransform(0);
+        }
+
+        window.onload = () => { 
+            switchLanguage('ru'); 
+            resetMap(); 
+            setupControls();
+            window.addEventListener('resize', () => renderTransform(0));
+        };
+    </script>
+</body>
+</html>
