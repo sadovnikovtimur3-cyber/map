@@ -84,27 +84,85 @@
             background-color: #111827; 
         }
 
-/* === СТИЛИ ДЛЯ МОБИЛЬНЫХ (ДО 768px) === */
-@media (max-width: 768px) {
-    main { flex-direction: column !important; height: 100vh; } 
-    .md\:w-2\/3 { order: 1 !important; width: 100% !important; flex: 1; }
-    .md\:w-1\/3 { order: 2 !important; width: 100% !important; height: 40%; } 
-    #mapContainer { height: 100% !important; width: 100% !important; aspect-ratio: auto !important; min-height: 300px; }
-    #contentWrapper { max-height: calc(40vh - 60px) !important; }
-    /* Мобильные размеры шрифтов (исходные) */
-    .mobile-text-lg { font-size: 1.125rem; /* text-lg */ }
-    .mobile-text-sm { font-size: 0.875rem; /* text-sm */ }
-    .mobile-text-xs { font-size: 0.75rem; /* text-xs */ }
-}
-
 /* === СТИЛИ ДЛЯ КОМПЬЮТЕРОВ (ОТ 769px) - УВЕЛИЧЕННЫЕ ШРИФТЫ === */
 @media (min-width: 769px) {
     #mapContainer { aspect-ratio: 16 / 9 !important; height: auto !important; }
 
-    /* УВЕЛИЧЕННЫЕ ШРИФТЫ */
-    .lg-text-3xl { font-size: 1.875rem; line-height: 2.25rem; } /* Больше, чем 2xl */
-    .lg-text-xl { font-size: 1.25rem; line-height: 1.75rem; }   /* Больше, чем lg */
-    .lg-text-base { font-size: 1rem; line-height: 1.5rem; }     /* Больше, чем sm/xs */
+    /* УВЕЛИЧЕННЫЕ ШРИФТЫ (lg-text-* используются только на desktop) */
+    .lg-text-3xl { font-size: 1.875rem; line-height: 2.25rem; } 
+    .lg-text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+    .lg-text-base { font-size: 1rem; line-height: 1.5rem; }
+}
+
+/* === СТИЛИ ДЛЯ МОБИЛЬНЫХ (ДО 768px) - ПЕРЕСТРОЙКА ИНТЕРФЕЙСА === */
+@media (max-width: 768px) {
+    /* Main container: column for mobile */
+    main { flex-direction: column !important; height: 100vh; } 
+
+    /* === 1. Content Sidebar (.md\:w-1\/3) - ВЕСЬ КОНТЕНТ СЛЕВА === */
+    .md\:w-1\/3 { 
+        order: 1 !important; /* Вся колонка контента - НАЧАЛО */
+        width: 100% !important; 
+        height: auto !important; 
+        padding: 0 !important; /* Убираем главный padding, добавляем к дочерним элементам */
+        flex-direction: column !important; /* Внутренние элементы упорядочиваются по вертикали */
+    }
+    
+    /* === 2. Map Column (.md\:w-2\/3) - СЕРЕДИНА === */
+    .md\:w-2\/3 { 
+        order: 2 !important; /* Карта - СЕРЕДИНА */
+        width: 100% !important; 
+        flex: 1; /* Занимает оставшееся пространство */
+    } 
+
+    /* === ВНУТРЕННЕЕ УПОРЯДОЧЕНИЕ И РАЗМЕРЫ НА МОБИЛЬНОМ === */
+    
+    /* A. Заголовок/Язык */
+    #headerBar { 
+        padding: 1rem 1.5rem 0.5rem !important; /* Свой padding для Top Bar */
+    }
+
+    /* B. Панель Контактов (mobileContactBar) */
+    #mobileContactBar {
+        display: flex !important; /* Делаем видимой на мобильном */
+        order: 2; /* Располагаем после заголовка */
+        padding: 0.5rem 1.5rem !important;
+        margin-bottom: 0 !important;
+        border-top: 1px solid #E5E7EB; /* Разделитель */
+    }
+
+    /* C. Поиск и Список (mobileSearchListWrapper) */
+    #searchListWrapper {
+        order: 3 !important; /* Переносим в самый низ (после карты) */
+        height: 40vh; /* Фиксированная высота для прокрутки */
+        overflow-y: auto;
+        padding: 0.5rem 1.5rem 1rem !important;
+        border-top: 1px solid #E5E7EB; /* Разделитель */
+    }
+    
+    /* Карта */
+    #mapContainer { height: 100% !important; width: 100% !important; aspect-ratio: auto !important; min-height: 250px; }
+    
+    /* === МЕНЬШИЕ ТЕКСТЫ ДЛЯ МОБИЛЬНЫХ === */
+    /* text-xl (desktop) -> text-lg (mobile) */
+    .mobile-text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+    /* text-base (desktop) -> text-sm (mobile) */
+    .mobile-text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+    /* text-xs (desktop) -> text-xs (mobile), но сжатый padding */
+    .mobile-text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+    
+    /* Применение */
+    #headerBar h1 { font-size: 1.25rem; } 
+    #searchInput { padding: 0.5rem !important; font-size: 0.875rem !important; }
+    #mobileContactBar .custom-button { padding: 0.25rem 0.5rem !important; font-size: 0.75rem !important; }
+    #resultsContainer > div { padding: 0.75rem !important; }
+    #resultsContainer img { width: 32px; height: 32px; }
+    #resultsContainer > div > div { font-size: 0.875rem !important; }
+    #infoPanel { padding: 1rem !important; }
+    #infoPanel h2 { font-size: 1.125rem !important; }
+    #infoPanel p, #infoPanel button { font-size: 0.875rem !important; }
+    #infoPanel img { width: 64px; height: 64px; }
+    .custom-button { padding: 0.35rem 0.75rem !important; }
 }
     </style>
 </head>
@@ -112,28 +170,42 @@
 
     <main class="flex flex-col md:flex-row h-screen">
 
-        <div class="md:w-1/3 w-full p-6 border-r border-gray-300 shadow-xl z-10 flex flex-col" style="background-color: var(--color-card-bg);">
-            <div class="flex justify-between items-start mb-4">
-                 <h1 class="font-bold text-blue-600 flex items-center text-2xl lg-text-3xl">
+        <div id="contentColumn" class="md:w-1/3 w-full p-6 border-r border-gray-300 shadow-xl z-10 flex flex-col" style="background-color: var(--color-card-bg);">
+            
+            <div id="headerBar" class="flex justify-between items-start mb-4">
+                 <h1 class="font-bold text-blue-600 flex items-center text-2xl lg-text-3xl mobile-text-lg">
                     <span id="headingText">Бухарское Еврейское кладбище</span>
                 </h1>
                 <div class="flex space-x-2">
-                    <button id="langRu" onclick="switchLanguage('ru')" class="custom-button px-2 py-1 rounded text-xs font-bold active">RU</button>
-                    <button id="langEn" onclick="switchLanguage('en')" class="custom-button px-2 py-1 rounded text-xs font-bold">EN</button>
+                    <button id="langRu" onclick="switchLanguage('ru')" class="custom-button px-2 py-1 rounded text-xs font-bold active mobile-text-xs">RU</button>
+                    <button id="langEn" onclick="switchLanguage('en')" class="custom-button px-2 py-1 rounded text-xs font-bold mobile-text-xs">EN</button>
+                </div>
+            </div>
+            
+            <div id="mobileContactBar" class="p-4 rounded-xl shadow-lg border border-gray-300 bg-white/90 flex flex-wrap justify-between items-center mb-4 hidden md:hidden">
+                <div class="pointer-events-auto">
+                    <h3 class="font-semibold text-gray-900 text-sm lg-text-base mobile-text-xs" id="contactTitle">Контакты</h3>
+                    <p class="text-gray-700 text-xs lg-text-sm mobile-text-xs" id="phoneLabel">Tel: +998...</p>
+                </div>
+                <div class="flex gap-2 pointer-events-auto">
+                    <a href="#" id="btnVideo" class="custom-button px-3 py-1 rounded-full text-xs mobile-text-xs">Видео 360°</a>
+                    <a href="#" id="btn3D" class="custom-button px-3 py-1 rounded-full text-xs mobile-text-xs">3D</a>
                 </div>
             </div>
 
-            <div id="searchContainer" class="mb-4">
-                <input type="text" id="searchInput" oninput="filterBurials()" placeholder="Введите ФИО..." class="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg lg-text-xl">
-            </div>
+            <div id="searchListWrapper" class="flex-grow flex flex-col">
+                <div id="searchContainer" class="mb-4">
+                    <input type="text" id="searchInput" oninput="filterBurials()" placeholder="Введите ФИО..." class="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg lg-text-xl mobile-text-sm">
+                </div>
 
-            <div id="contentWrapper" class="overflow-y-auto flex-grow pr-2">
-                <div id="resultsContainer" class="space-y-3"></div>
-                <div id="infoPanel" class="hidden p-4 rounded-xl border border-gray-300 bg-gray-100"></div>
+                <div id="contentWrapper" class="overflow-y-auto flex-grow pr-2">
+                    <div id="resultsContainer" class="space-y-3"></div>
+                    <div id="infoPanel" class="hidden p-4 rounded-xl border border-gray-300 bg-gray-100"></div>
+                </div>
             </div>
         </div>
 
-        <div class="md:w-2/3 w-full relative bg-gray-900 flex flex-col">
+        <div id="mapColumn" class="md:w-2/3 w-full relative bg-gray-900 flex flex-col order-2 md:order-none">
             <div id="mapContainer" class="relative w-full h-full overflow-hidden cursor-grab">
                 <div id="coordDisplay" class="absolute bottom-3 right-3">X: 0.00, Y: 0.00</div>
                 
@@ -143,20 +215,20 @@
                     <div id="burialImageContainer" class="map-layer-overlay"></div>
                 </div>
             </div>
-
-            <div class="absolute bottom-6 left-6 right-6 p-4 rounded-xl shadow-lg border border-gray-300 bg-white/90 backdrop-blur-sm flex flex-wrap justify-between items-center pointer-events-none">
+            
+            <div id="desktopContactBar" class="absolute bottom-6 left-6 right-6 p-4 rounded-xl shadow-lg border border-gray-300 bg-white/90 backdrop-blur-sm flex flex-wrap justify-between items-center pointer-events-none hidden md:flex">
                 <div class="pointer-events-auto">
-                    <h3 class="font-semibold text-gray-900 text-sm lg-text-base" id="contactTitle">Контакты</h3>
-                    <p class="text-gray-700 text-xs lg-text-sm" id="phoneLabel">Tel: +998...</p>
+                    <h3 class="font-semibold text-gray-900 text-sm lg-text-base" id="contactTitleDesktop">Контакты</h3>
+                    <p class="text-gray-700 text-xs lg-text-sm" id="phoneLabelDesktop">Tel: +998...</p>
                 </div>
                 <div class="flex gap-2 pointer-events-auto">
-                    <a href="#" id="btnVideo" class="custom-button px-3 py-1 rounded-full text-xs lg-text-sm">Видео 360°</a>
-                    <a href="#" id="btn3D" class="custom-button px-3 py-1 rounded-full text-xs lg-text-sm">3D</a>
+                    <a href="#" id="btnVideoDesktop" class="custom-button px-3 py-1 rounded-full text-xs lg-text-sm">Видео 360°</a>
+                    <a href="#" id="btn3DDesktop" class="custom-button px-3 py-1 rounded-full text-xs lg-text-sm">3D</a>
                 </div>
             </div>
         </div>
     </main>
-    
+
     <div id="photoModal" class="hidden fixed inset-0 bg-black/90 flex justify-center items-center z-50 p-4" onclick="document.getElementById('photoModal').classList.add('hidden')">
         <img id="modalImage" class="max-w-full max-h-full object-contain cursor-pointer" src="" alt="Full-size burial photo" onclick="event.stopPropagation()">
         <button class="absolute top-4 right-4 text-white text-4xl font-light p-2 hover:text-red-500 transition duration-150" onclick="event.stopPropagation(); document.getElementById('photoModal').classList.add('hidden')">&times;</button>
@@ -376,7 +448,7 @@
             setTimeout(() => { mapWrapper.style.transition = 'none'; }, 100);
         }
 
-        // === НОВАЯ ФУНКЦИЯ: Открытие модального окна с фото ===
+        // === Открытие модального окна с фото ===
         function openPhotoModal(src) {
             const modal = D.getElementById('photoModal');
             const image = D.getElementById('modalImage');
@@ -484,17 +556,40 @@
             else coordDisplay.innerText = languageData[currentLang].coord_outside;
         }
 
-        // === 7. UI (Обновлена стилистика) ===
+        // === 7. UI ===
+
+        // Функция для обновления текста контактов
+        function updateContactTexts(t) {
+            // Для мобильного и десктопного контактов
+            D.getElementById('contactTitle').textContent = t.info_panel_title;
+            D.getElementById('phoneLabel').textContent = `${t.label_phone}: +998...`;
+            D.getElementById('btnVideo').textContent = t.btn_video;
+            D.getElementById('btn3D').textContent = t.btn_3d;
+            
+            // Для десктопных контактов
+            if(D.getElementById('contactTitleDesktop')) {
+                D.getElementById('contactTitleDesktop').textContent = t.info_panel_title;
+                D.getElementById('phoneLabelDesktop').textContent = `${t.label_phone}: +998...`;
+                D.getElementById('btnVideoDesktop').textContent = t.btn_video;
+                D.getElementById('btn3DDesktop').textContent = t.btn_3d;
+            }
+        }
+
         function switchLanguage(lang) {
             currentLang = lang;
             const t = languageData[lang];
+            
+            // Заголовок
             D.getElementById('headingText').textContent = t.heading;
+            
+            // Поиск (общий ID)
             D.getElementById('searchInput').placeholder = t.search_placeholder;
-            D.getElementById('contactTitle').textContent = t.info_panel_title;
-            D.getElementById('btnVideo').textContent = t.btn_video;
-            D.getElementById('btn3D').textContent = t.btn_3d;
-            D.getElementById('langRu').className = `custom-button px-2 py-1 rounded text-xs font-bold ${lang==='ru'?'active':''}`;
-            D.getElementById('langEn').className = `custom-button px-2 py-1 rounded text-xs font-bold ${lang==='en'?'active':''}`;
+            
+            // Кнопки языка
+            D.getElementById('langRu').className = `custom-button px-2 py-1 rounded text-xs font-bold ${lang==='ru'?'active':''} mobile-text-xs`;
+            D.getElementById('langEn').className = `custom-button px-2 py-1 rounded text-xs font-bold ${lang==='en'?'active':''} mobile-text-xs`;
+            
+            updateContactTexts(t); // Обновляем контакты
             filterBurials();
             if (!D.getElementById('infoPanel').classList.contains('hidden')) {
                 const id = D.getElementById('infoPanel').dataset.id;
@@ -509,18 +604,22 @@
             
             // Черный текст, голубые акценты
             p.innerHTML = `
-                <div class="mb-3"><button onclick="hideInfo()" class="text-blue-600 text-sm hover:text-blue-800 lg-text-base">${t.btn_back}</button></div>
+                <div class="mb-3"><button onclick="hideInfo()" class="text-blue-600 text-sm hover:text-blue-800 lg-text-base mobile-text-sm">${t.btn_back}</button></div>
                 <div class="flex gap-4 mb-4">
                     <img src="${b.photo}" class="w-20 h-20 rounded object-cover border-2 border-blue-500 cursor-pointer" onclick="openPhotoModal('${b.photo}')">
                     <div>
-                        <h2 class="font-bold text-gray-900 text-xl lg-text-xl">${currentLang==='ru'?b.fio_ru:b.fio_en}</h2>
-                        <p class="text-sm text-gray-600 lg-text-base">${b.date}</p>
+                        <h2 class="font-bold text-gray-900 text-xl lg-text-xl mobile-text-lg">${currentLang==='ru'?b.fio_ru:b.fio_en}</h2>
+                        <p class="text-sm text-gray-600 lg-text-base mobile-text-sm">${b.date}</p>
                     </div>
                 </div>
-                <p class="text-sm text-gray-800 lg-text-base">${currentLang==='ru'?b.details_ru:b.details_en}</p>
+                <p class="text-sm text-gray-800 lg-text-base mobile-text-sm">${currentLang==='ru'?b.details_ru:b.details_en}</p>
             `;
             D.getElementById('resultsContainer').classList.add('hidden');
             p.classList.remove('hidden');
+
+            // --- ИСПРАВЛЕНИЕ: Стабилизируем положение карты перед анимацией ---
+            renderTransform(0); 
+
             animateBurial(b.id);
         }
 
@@ -537,13 +636,18 @@
             const list = q ? burialData.filter(b => b.fio_ru.toLowerCase().includes(q) || b.fio_en.toLowerCase().includes(q)) : burialData;
             const cont = D.getElementById('resultsContainer');
             cont.innerHTML = '';
-            if (!list.length) cont.innerHTML = `<div class="text-center text-gray-500 text-base lg-text-base">${languageData[currentLang].not_found}</div>`;
+            
+            // Если список результатов изменился, это может вызвать небольшой сдвиг. 
+            // Это нормально, т.к. flex-контейнер перестраивается.
+            // Главное, чтобы не смещалась сама карта при zoom.
+            
+            if (!list.length) cont.innerHTML = `<div class="text-center text-gray-500 text-base lg-text-base mobile-text-sm">${languageData[currentLang].not_found}</div>`;
             list.forEach(b => {
                 const el = D.createElement('div');
                 el.className = "p-3 border border-gray-300 rounded bg-white hover:bg-gray-100 cursor-pointer flex items-center gap-3";
                 el.onclick = () => showBurialInfo(b);
-                // Черный шрифт для ФИО: text-base (компьютер)
-                el.innerHTML = `<img src="${b.photo}" class="w-10 h-10 rounded-full object-cover border border-gray-300"><div class="text-sm font-bold text-gray-900 lg-text-base">${currentLang==='ru'?b.fio_ru:b.fio_en}</div>`;
+                // Черный шрифт для ФИО: text-base (компьютер), mobile-text-sm (мобильный)
+                el.innerHTML = `<img src="${b.photo}" class="w-10 h-10 rounded-full object-cover border border-gray-300"><div class="text-sm font-bold text-gray-900 lg-text-base mobile-text-sm">${currentLang==='ru'?b.fio_ru:b.fio_en}</div>`;
                 cont.appendChild(el);
             });
         }
